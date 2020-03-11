@@ -1,0 +1,17 @@
+{
+  "Changes": [
+    {
+      "Action": "<ACTION>",
+      "ResourceRecordSet": {
+        "Name": "<NAME>",
+        "Type": "<TYPE>",
+        "TTL": 300,
+        "ResourceRecords": [
+          {
+            "Value": "<VALUE>"
+          },
+        ]
+      }
+    },
+  ]
+}
