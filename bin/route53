@@ -2,7 +2,7 @@
 
 APP=$(basename $0)
 #APP_DIR=$(dirname $0)
-APP_VERSION="0.3.3"
+APP_VERSION="0.3.5"
 
 function err()
 {
@@ -44,6 +44,10 @@ function argCheck()
         usage
         exit 1
     fi
+    for cmd in jq sed tr sort aws 
+    do
+        [ ! -x "$(which $cmd)" ] && err ERROR: required command $cmd not found. && exit 7
+    done
 }
 
 function main()

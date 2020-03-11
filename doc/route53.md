@@ -33,6 +33,16 @@ be too complex to do the basic things like:
 The route53 expects that the `awscli` command is set to the correct AWS account which holds the DNS domain
 which is going to be questioned or changed.
 
+### Dependencies
+
+The following commands are required:
+
+- jq
+- sed
+- tr
+- sort
+- aws
+
 ## Command
 
 As git, all commands are controlled by a sub-command.
