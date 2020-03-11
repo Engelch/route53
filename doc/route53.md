@@ -6,6 +6,8 @@ Copyright (c) Christian Engel (engel-ch@outlook.com).
 
 - [AWS route53 utils](#aws-route53-utils)
   - [Introduction](#introduction)
+    - [Dependencies](#dependencies)
+    - [aws configuration](#aws-configuration)
   - [Command](#command)
     - [help](#help)
     - [version](#version)
@@ -42,6 +44,20 @@ The following commands are required:
 - tr
 - sort
 - aws
+
+### aws configuration
+
+The AWS command line utility `aws` must be configured. This can be done using the command
+
+```bash
+aws configure
+```
+
+The actual configuration can be shown using the command
+
+```bash
+aws configure list
+```
 
 ## Command
 
