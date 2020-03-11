@@ -1,0 +1,99 @@
+#!/usr/bin/env bash
+
+APP=$(basename $0)
+#APP_DIR=$(dirname $0)
+APP_VERSION="0.3.3"
+
+function err()
+{
+    echo "$@" > /dev/stderr
+}
+
+function usage()
+{
+    err "USAGE:"
+    err "-   $APP version|-V                                                        # app-name:versionNumber"
+    err "-   $APP help|-h                                                           # show this message"
+    err "-   $APP domains                                                           # list domains hosted by current AWS account"
+    err "-   $APP domainlist|listdomain <domain>                                    # list A and CNAME records of a domain"
+    err "-   $APP listA|lista <domain>                                              # list A records of a domain"
+    err "-   $APP listcname|listCname|listCNAME <domain>                            # list CNAME records of a domain"
+    err "-   $APP search <domain> <searchRegExpr>                                   # search the domain for CNAME and A records"
+    err "-   $APP hostedzoneID|hostedZoneID|hostedzoneid|zoneID|zoneid <domain>     # list hostedzoneID"
+}
+
+function hostedzoneID() 
+{
+    domain=$1
+    [[ $domain != *. ]] && domain=$domain.
+    #echo domain:$domain > /dev/stderr
+    aws route53 list-hosted-zones  | jq ".HostedZones[] | select(.Name  == \"$domain\").Id" | sed -e 's/\"//g' -e 's,/hostedzone/,,'
+}
+
+function listDomainType()
+{
+    _hostID=$1
+    _domainType=$2   
+    aws route53 list-resource-record-sets --hosted-zone-id $_hostID | jq ".ResourceRecordSets[] | select(.Type == \"$_domainType\") | select(.Name != \"\").Name+\":\"+.ResourceRecords[0].Value" | sed 's/\"//g'
+}
+
+function argCheck()
+{
+    if [ $# -lt 1 ] ; then
+        err ERROR: number of args is $#
+        usage
+        exit 1
+    fi
+}
+
+function main()
+{
+    argCheck $@
+    cmd="$1"
+    case $cmd in
+    domainlist|listdomain)
+        [ $# -ne 2 ] && err ERROR: wrong number of arguments $# && usage && exit 4
+        hostID=$(hostedzoneID $2)
+        [ -z "$hostID" ] && err ERROR: hostID could not be determined && exit 10
+        echo $(listDomainType $hostID CNAME) $(listDomainType $hostID A) | tr ' ' '\n' | sort
+        ;;
+    domains)    
+        aws route53 list-hosted-zones  | jq '.HostedZones[].Name' | sed 's/\"//g' | sort
+        ;;
+    hostedzoneID|hostedZoneID|hostedzoneid|zoneID|zoneid)
+        [ $# -ne 2 ] && err ERROR: wrong number of arguments $# && usage && exit 4
+        hostedzoneID $2
+        ;;
+    help|-h)
+        usage
+        ;;
+    lista|listA)
+        [ $# -ne 2 ] && err ERROR: wrong number of arguments $# && usage && exit 4
+        hostID=$(hostedzoneID $2)
+        [ -z "$hostID" ] && err ERROR: hostID could not be determined && exit 10
+        echo $(listDomainType $hostID A) | tr ' ' '\n' | sort
+        ;;
+    listcname|listCname|listCNAME)
+        [ $# -ne 2 ] && err ERROR: wrong number of arguments $# && usage && exit 4
+        hostID=$(hostedzoneID $2)
+        [ -z "$hostID" ] && err ERROR: hostID could not be determined && exit 10
+        echo $(listDomainType $hostID CNAME) | tr ' ' '\n' | sort
+        ;;
+    search)
+        [ $# -ne 3 ] && err ERROR: wrong number of arguments $# && usage && exit 4
+        hostID=$(hostedzoneID $2)
+        [ -z "$hostID" ] && err ERROR: hostID could not be determined && exit 10
+        echo $(listDomainType $hostID CNAME) $(listDomainType $hostID A) | tr ' ' '\n' | sort | egrep "$3"
+        ;;
+    version|-V)
+        echo $APP:$APP_VERSION
+        exit 3
+        ;;
+    *)
+        err ERROR: unsupported command $cmd
+        exit 2
+        ;;
+    esac
+}
+
+main $@
