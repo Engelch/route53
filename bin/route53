@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 # © 2020 engel-ch@outlook.com under MIT-license
 
-
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
 # in the Software without restriction, including without limitation the rights
@@ -22,7 +21,8 @@
 
 APP=$(basename $0)
 #APP_DIR=$(dirname $0)
-APP_VERSION="0.4.0"
+APP_VERSION="1.0.0"
+JSON_CMD='{ "Changes": [ { "Action": "<ACTION>", "ResourceRecordSet": { "Name": "<NAME>", "Type": "<TYPE>", "TTL": 300, "ResourceRecords": [ { "Value": "<VALUE>" } ] } } ] }'
 
 function err()
 {
@@ -39,7 +39,36 @@ function usage()
     err "-   $APP listA|lista <domain>                                              # list A records of a domain"
     err "-   $APP listcname|listCname|listCNAME <domain>                            # list CNAME records of a domain"
     err "-   $APP search <domain> <searchRegExpr>                                   # search the domain for CNAME and A records"
+    err "-   $APP create <FQDN> <IPaddr>|<destFQDN>                                 # add the A|CNAME record to the domain if not existing"
+    err "-   $APP upsert <FQDN> <IPaddr>|<destFQDN>                                 # update or insert the A|CNAME record to the domain if not existing"
+    err "-   $APP delete <FQDN> <IPaddr>|<destFQDN>                                 # delete an A|CNAME record"
     err "-   $APP hostedzoneID|hostedZoneID|hostedzoneid|zoneID|zoneid <domain>     # list hostedzoneID"
+    err
+    err "It is an error to update an A record with a CNAME or vice-versa."
+}
+
+function validIP()
+{
+    local  ip=$1
+
+    if [[ $ip =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
+        OIFS=$IFS
+        IFS='.'
+        ip=($ip)
+        IFS=$OIFS
+        [[ ${ip[0]} -le 255 && ${ip[1]} -le 255 && ${ip[2]} -le 255 && ${ip[3]} -le 255 ]]
+        return $?
+    fi
+    return 1
+}
+
+function validDomain()
+{
+    local domain=$1
+    if [[ $domain =~ ^([a-zA-Z][-0-9a-zA-Z]{0,253}\.){1,50}[a-zA-Z]{1,63}$ ]] ; then
+        return 0
+    fi
+    return 1
 }
 
 function hostedzoneID() 
@@ -108,6 +137,34 @@ function main()
         hostID=$(hostedzoneID $2)
         [ -z "$hostID" ] && err ERROR: hostID could not be determined && exit 10
         echo $(listDomainType $hostID CNAME) $(listDomainType $hostID A) | tr ' ' '\n' | sort | egrep "$3"
+        ;;
+    create|upsert|delete)
+        [ $# -ne 3 ] && err ERROR: wrong number of arguments $# && usage && exit 4
+        _FQDN=$2
+        _IPaddr=$3
+        if validIP $_IPaddr  ; then
+            err validIP
+        else
+            err invalid IP-address
+            if validDomain $_IPaddr ; then
+                err validDomain
+                _cname=1
+            else
+                err not a domain, not an IP-address
+                exit 6
+            fi
+        fi
+        _domain=$(echo $_FQDN | sed 's/^[a-z0-9]*\.//')
+        err domain is $_domain
+        hostID=$(hostedzoneID $_domain)
+        err hostID is $hostID
+        [ -z $hostID ] && err host-ID could not be determined. && exit 5
+        [ $1 = create ] && JSON_CMD=$(echo $JSON_CMD | sed -e 's/<ACTION>/CREATE/' -e "s/<NAME>/$_FQDN/" -e "s/<TYPE>/A/" -e "s/<VALUE>/$_IPaddr/")
+        [ $1 = upsert ] && JSON_CMD=$(echo $JSON_CMD | sed -e 's/<ACTION>/UPSERT/' -e "s/<NAME>/$_FQDN/" -e "s/<TYPE>/A/" -e "s/<VALUE>/$_IPaddr/")
+        [ $1 = delete ] && JSON_CMD=$(echo $JSON_CMD | sed -e 's/<ACTION>/DELETE/' -e "s/<NAME>/$_FQDN/" -e "s/<TYPE>/A/" -e "s/<VALUE>/$_IPaddr/")
+        [ "$_cname" = 1 ] && JSON_CMD=$(echo $JSON_CMD | sed -e 's/"Type": "A"/"Type": "CNAME"/')
+        echo $JSON_CMD
+        aws route53 change-resource-record-sets --hosted-zone-id $hostID --change-batch "$JSON_CMD" | cat
         ;;
     version|-V)
         echo $APP:$APP_VERSION
