@@ -21,7 +21,7 @@
 
 APP=$(basename $0)
 #APP_DIR=$(dirname $0)
-APP_VERSION="1.0.0"
+APP_VERSION="1.0.1"
 # all entries done by this script should easily be identifiable by the special TTL value 301
 JSON_CMD='{ "Changes": [ { "Action": "<ACTION>", "ResourceRecordSet": { "Name": "<NAME>", "Type": "<TYPE>", "TTL": 301, "ResourceRecords": [ { "Value": "<VALUE>" } ] } } ] }'
 
@@ -144,27 +144,40 @@ function main()
         _FQDN=$2
         _IPaddr=$3
         if validIP $_IPaddr  ; then
-            err validIP
+            echo > /dev/null
+            #err validIP
         else
-            err invalid IP-address
+            #err invalid IP-address
             if validDomain $_IPaddr ; then
-                err validDomain
-                _cname=1
+                #err validDomain
+                _cname=1    # enable CNAME mode, def: A mode
             else
                 err not a domain, not an IP-address
                 exit 6
             fi
         fi
         _domain=$(echo $_FQDN | sed 's/^[a-z0-9]*\.//')
-        err domain is $_domain
+        #err domain is $_domain
         hostID=$(hostedzoneID $_domain)
-        err hostID is $hostID
+        #err hostID is $hostID
         [ -z $hostID ] && err host-ID could not be determined. && exit 5
-        [ $1 = create ] && JSON_CMD=$(echo $JSON_CMD | sed -e 's/<ACTION>/CREATE/' -e "s/<NAME>/$_FQDN/" -e "s/<TYPE>/A/" -e "s/<VALUE>/$_IPaddr/")
-        [ $1 = upsert ] && JSON_CMD=$(echo $JSON_CMD | sed -e 's/<ACTION>/UPSERT/' -e "s/<NAME>/$_FQDN/" -e "s/<TYPE>/A/" -e "s/<VALUE>/$_IPaddr/")
-        [ $1 = delete ] && JSON_CMD=$(echo $JSON_CMD | sed -e 's/<ACTION>/DELETE/' -e "s/<NAME>/$_FQDN/" -e "s/<TYPE>/A/" -e "s/<VALUE>/$_IPaddr/")
+        case $1 in
+        create)
+            JSON_CMD=$(echo $JSON_CMD | sed -e 's/<ACTION>/CREATE/' -e "s/<NAME>/$_FQDN/" -e "s/<TYPE>/A/" -e "s/<VALUE>/$_IPaddr/")
+            ;;
+        upsert)
+            JSON_CMD=$(echo $JSON_CMD | sed -e 's/<ACTION>/UPSERT/' -e "s/<NAME>/$_FQDN/" -e "s/<TYPE>/A/" -e "s/<VALUE>/$_IPaddr/")
+            ;;
+        delete)
+            JSON_CMD=$(echo $JSON_CMD | sed -e 's/<ACTION>/DELETE/' -e "s/<NAME>/$_FQDN/" -e "s/<TYPE>/A/" -e "s/<VALUE>/$_IPaddr/")
+            ;;
+        *)
+            err Wrong command, this should not happen && exit 11
+            ;;
+        esac
+        # fix for CNAME
         [ "$_cname" = 1 ] && JSON_CMD=$(echo $JSON_CMD | sed -e 's/"Type": "A"/"Type": "CNAME"/')
-        # echo $JSON_CMD
+        #echo $JSON_CMD
         aws route53 change-resource-record-sets --hosted-zone-id $hostID --change-batch "$JSON_CMD" | cat
         ;;
     version|-V)
